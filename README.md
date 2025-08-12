@@ -1,12 +1,12 @@
 # 7D Local-Minima Grid Search (Numba-Optimized)
 
-A fast, **Numba-parallelized** implementation that evaluates a 7‑dimensional transformation grid and finds **all local minima** with the **same logic** as the original pure-Python script:
+A fast, **Numba-parallelized** implementation that evaluates a 7‑dimensional transformation grid and finds **all local minima** :
 
-* Same parameter ranges (tx, ty, rot, sx, sy, skx, sky)
-* Same distance metric (sum of Euclidean distances over rows)
-* Same neighborhood rule (3^7−1 neighbors in $-1,0,1$ offsets; **strictly smaller** neighbor disqualifies a center; ties are allowed)
+* Parameter ranges (tx, ty, rot, sx, sy, skx, sky)
+* Distance metric (sum of Euclidean distances over rows)
+* Neighborhood rule (3^7−1 neighbors in $-1,0,1$ offsets; **strictly smaller** neighbor disqualifies a center; ties are allowed)
 
-This version keeps behavior identical while greatly reducing runtime by pushing hot loops into compiled, parallel kernels.
+This version reduce runtime by pushing hot loops into compiled, parallel kernels.
 
 ---
 
@@ -69,7 +69,7 @@ for i, (index, value) in enumerate(minima, 1):
 ## Parameters & Grids
 
 * `Nr` (default 7): number of equally spaced bins per dimension
-* Parameter ranges (identical to the original script):
+* Parameter ranges (can be customized):
 
   * `tx, ty, rot, skx, sky` ∈ `linspace(-0.5, 0.5, Nr)`
   * `sx, sy` ∈ `linspace(0.5, 1.5, Nr)`
@@ -90,7 +90,7 @@ You can change these ranges inside `find_local_minima` if needed. Increasing `Nr
 
 ## Exactness & Tie Rule
 
-* **Distance metric:** Sum of Euclidean distances over point rows (includes the `sqrt`), matching the original function exactly.
+* **Distance metric:** Sum of Euclidean distances over point rows (includes the `sqrt`).
 * **Local-min rule:** A center is a local minimum if **no in-bounds neighbor has a strictly smaller value**. Equal neighbors are allowed (plateau minima). To change this, flip the condition in the minima kernel from `if v < center_val` to `if v <= center_val`.
 
 ---
