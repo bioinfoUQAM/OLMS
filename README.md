@@ -38,7 +38,7 @@ pip install numpy numba
 
 ```python
 import numpy as np
-from your_module import find_local_minima  # or paste the script and call directly
+from module import find_local_minima  # or paste the script and call directly
 
 # Example data (6×2 points)
 data_2 = np.array([
