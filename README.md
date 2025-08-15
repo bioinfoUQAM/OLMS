@@ -127,7 +127,6 @@ $env:MKL_NUM_THREADS   = 1
 
 * **“It runs then seems to hang” on first call**: That’s usually JIT compilation. Give it a moment the first time; subsequent calls are fast. If it persists, temporarily change `@njit(parallel=True, ...)` to `parallel=False` to rule out a thread config issue.
 * **No output / freeze with parallel=True**: Ensure per‑iteration temporaries are **allocated inside** the `prange` loop (the provided code does this). Shared buffers can cause stalls.
-* **Different results vs MATLAB**: Ensure identical ranges, bin counts, and tie rule. If you changed `fastmath`, tiny numeric differences may reorder equal plateaus.
 
 ---
 
@@ -177,8 +176,4 @@ $env:MKL_NUM_THREADS   = 1
 * **Custom Distance:** Replace `_stall_distance_sum` with your preferred metric (e.g., weighted distances) to bias certain points.
 * **Different Neighborhoods:** Change `offsets` to evaluate a different stencil (e.g., king’s move only, or radius‑2 neighborhoods).
 
----
 
-## License
-
-Well-e.
