@@ -3,10 +3,12 @@ import time
 import numba as nb
 
 
-"""This script finds best local minima in a 7D space defined by a set of transformation parameters.
+"""
+This script finds best local minimas in a 7D space defined by a set of transformation parameters.
 The transformations include translation (2D), rotation (1D), scale (2D), and skew (2D).
 The script :
-    push the heavy loops into Numba → compiled, parallel C loops, which is much faster than pure Python.
+    push the heavy python loops into Numba → compiled, parallel C loops, which is much faster than pure Python.
+    
     precompute trig for rotation bins.
     avoid building matrices & temporary arrays inside Python.
     It uses parallel processing to efficiently search through the parameter space.
@@ -14,7 +16,7 @@ The script :
 
 # Function to calculate the distance between two sets of points
 # --------- math helpers compiled with numba ---------
-@nb.njit(fastmath=True, cache=True)
+@nb.njit(fastmath=True, cache=False)
 def _stall_distance_sum(points1, points2):
     s = 0.0
     for i in range(points1.shape[0]):
@@ -26,7 +28,7 @@ def _stall_distance_sum(points1, points2):
 
 # Function to apply a 7D transformation to a set of points
 # this will avoid allocating a new array each call
-@nb.njit(fastmath=True, cache=True)
+@nb.njit(fastmath=True, cache=False)
 def _apply_7dof(points, tx, ty, rot_c, rot_s, sx, sy, skx, sky, out):
     # transform:
     # [[ sx*( c + sky*s),  sx*( skx*c + s),  tx],
@@ -40,27 +42,35 @@ def _apply_7dof(points, tx, ty, rot_c, rot_s, sx, sy, skx, sky, out):
     a12 = ty
 
     n = points.shape[0]
+    # apply the transformation to each point
+    # and store the result in the output array
     for i in range(n):
-        x = points[i,0]; y = points[i,1]
+        x = points[i,0]
+        y = points[i,1]
         out[i,0] = x*a00 + y*a01 + a02
         out[i,1] = x*a10 + y*a11 + a12
 
 # Function to unravel a flat index into a multi-dimensional index
 # This is used to convert a flat index into a multi-dimensional index (7D) for the distance grid.
 # same as np.unravel_index but not that compatible with njit kernels
-@nb.njit(cache=True)
+@nb.njit(cache=False)
 def _unravel_index(idx, shape, out):
     for i in range(len(shape)-1, -1, -1):
         out[i] = idx % shape[i]
         idx //= shape[i]
 
 # Compute the distance grid in parallel
-@nb.njit(parallel=True, fastmath=True, cache=True)
+@nb.njit(parallel=True, fastmath=True, cache=False)
 def _compute_dist_grid(dist_grid, points, target,
                        tx_vals, ty_vals, rot_cos, rot_sin, sx_vals, sy_vals, skx_vals, sky_vals):
+    #
     Nr = tx_vals.shape[0]
+    # shape of the distance grid (7D)
     shape = (Nr, Nr, Nr, Nr, Nr, Nr, Nr)
+    # total number of elements in the distance grid
+    # this is used to iterate over the grid in parallel
     total = 1
+    
     for s in shape:
         total *= s
 
@@ -68,12 +78,17 @@ def _compute_dist_grid(dist_grid, points, target,
     for flat in nb.prange(total):
         # per-iteration locals (avoid shared state!)
         idx_vec = np.empty(7, dtype=np.int64)
+        # unravel the flat index into a multi-dimensional index
+        # idx_vec will hold the indices for each dimension
+        # unravel_index(flat, shape) -> (ix0, ix1, ix2, ix3, ix4, ix5, ix6)
         _unravel_index(flat, shape, idx_vec)
 
+        # extract the indices for each dimension
         ix0, ix1, ix2, ix3, ix4, ix5, ix6 = (
             idx_vec[0], idx_vec[1], idx_vec[2], idx_vec[3],
             idx_vec[4], idx_vec[5], idx_vec[6]
         )
+        # get the transformation parameters for this index
         tx  = tx_vals[ix0]
         ty  = ty_vals[ix1]
         c   = rot_cos[ix2]
@@ -83,7 +98,7 @@ def _compute_dist_grid(dist_grid, points, target,
         skx = skx_vals[ix5]
         sky = sky_vals[ix6]
 
-        # thread-local buffer
+        # create a temporary array to hold the transformed points
         # apply the transformation and compute the distance
         tmp = np.empty_like(points)
         _apply_7dof(points, tx, ty, c, s, sx, sy, skx, sky, tmp)
@@ -93,7 +108,7 @@ def _compute_dist_grid(dist_grid, points, target,
 
 # Function to transform points using the given parameters
 # This function applies translation, rotation, scaling, and skewing to the input points.
-@nb.njit(parallel=True, cache=True)
+@nb.njit(parallel=True, cache=False)
 def _compute_minima_mask(dist_grid, offsets):
     Nr = dist_grid.shape[0]
     shape = dist_grid.shape
@@ -105,8 +120,10 @@ def _compute_minima_mask(dist_grid, offsets):
 
     for flat in nb.prange(total):
         # per-iteration locals
+        # unravel the flat index 
         idx_vec = np.empty(7, dtype=np.int64)
         _unravel_index(flat, shape, idx_vec)
+        # get the center (current point) value from the distance grid
         center_val = dist_grid[idx_vec[0], idx_vec[1], idx_vec[2],
                                idx_vec[3], idx_vec[4], idx_vec[5], idx_vec[6]]
 
